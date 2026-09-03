@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "Conexão Estoque",
+    "slug": "conexao-estoque",
+    "version": "1.0.0",
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "O Conexão Estoque precisa de acesso à galeria para que você vincule fotos dos produtos a cada variação de cor."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#FFFFFF"
+      },
+      "permissions": [
+        "READ_EXTERNAL_STORAGE",
+        "READ_MEDIA_IMAGES"
+      ]
+    }
+  }
+}
