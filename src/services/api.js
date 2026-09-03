@@ -4,8 +4,12 @@ import { io } from 'socket.io-client';
 export const BASE_URL = 'https://conexao-estoque-backends.onrender.com';
 
 export const api = axios.create({
-  baseURL: `${BASE_URL}/api`,
-  timeout: 15000,
+  baseURL: 'https://conexao-estoque-backends.onrender.com/api',
+  timeout: 30000,
+  headers: {
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+  },
 });
 
 export const socket = io(BASE_URL, {

@@ -16,7 +16,13 @@
       "permissions": [
         "READ_EXTERNAL_STORAGE",
         "READ_MEDIA_IMAGES"
-      ]
+      ],
+      "package": "com.betags2.conexaoestoque"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "b7362873-7080-4ee6-8d05-c6f301b57a5a"
+      }
     }
   }
 }
