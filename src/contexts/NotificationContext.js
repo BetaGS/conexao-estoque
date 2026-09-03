@@ -1,49 +1,56 @@
-import React, { createContext, useContext, useState, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { registerForPushNotificationsAsync, triggerDeviceNotification } from '../services/notifications';
 
 const NotificationContext = createContext({});
 
 export function NotificationProvider({ children }) {
-  const [notification, setNotification] = useState(null);
-  const translateY = useRef(new Animated.Value(-120)).current;
-  const insets = useSafeAreaInsets();
+  const [banner, setBanner] = useState(null);
+  const slideAnim = useState(new Animated.Value(-100))[0];
 
-  const showNotification = ({ title, body, isUrgent = false }) => {
-    setNotification({ title, body, isUrgent });
+  useEffect(() => {
+    // Solicita permissão ao carregar o app
+    registerForPushNotificationsAsync();
+  }, []);
 
+  const showNotification = async ({ title, body, isUrgent = false }) => {
+    // 1. Notificação nativa na barra de status do celular
+    try {
+      await triggerDeviceNotification({ title, body, isUrgent });
+    } catch (err) {
+      console.log('Erro ao disparar notificação nativa:', err.message);
+    }
+
+    // 2. Banner animado interno (in-app)
+    setBanner({ title, body, isUrgent });
     Animated.sequence([
-      Animated.spring(translateY, {
-        toValue: insets.top + 8,
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 250,
         useNativeDriver: true,
-        bounciness: 8,
       }),
       Animated.delay(3500),
-      Animated.timing(translateY, {
-        toValue: -120,
-        duration: 300,
+      Animated.timing(slideAnim, {
+        toValue: -100,
+        duration: 250,
         useNativeDriver: true,
       }),
-    ]).start(() => setNotification(null));
+    ]).start(() => setBanner(null));
   };
 
   return (
     <NotificationContext.Provider value={{ showNotification }}>
       {children}
-      {notification && (
+      {banner && (
         <Animated.View
           style={[
             styles.bannerContainer,
-            {
-              transform: [{ translateY }],
-              backgroundColor: notification.isUrgent ? '#DC2626' : '#0F172A',
-            },
+            { transform: [{ translateY: slideAnim }] },
+            banner.isUrgent ? styles.urgentBanner : styles.normalBanner,
           ]}
         >
-          <View style={styles.content}>
-            <Text style={styles.title}>{notification.title}</Text>
-            <Text style={styles.body}>{notification.body}</Text>
-          </View>
+          <Text style={styles.bannerTitle}>{banner.title}</Text>
+          <Text style={styles.bannerBody} numberOfLines={2}>{banner.body}</Text>
         </Animated.View>
       )}
     </NotificationContext.Provider>
@@ -55,20 +62,16 @@ export const useAppNotification = () => useContext(NotificationContext);
 const styles = StyleSheet.create({
   bannerContainer: {
     position: 'absolute',
-    top: 0,
+    top: 40,
     left: 16,
     right: 16,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 16,
-    zIndex: 9999,
+    padding: 14,
+    borderRadius: 14,
     elevation: 8,
-    shadowColor: '#000',
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
+    zIndex: 9999,
   },
-  content: { flexDirection: 'column' },
-  title: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
-  body: { color: '#F1F5F9', fontSize: 12, marginTop: 3 },
+  normalBanner: { backgroundColor: '#1E293B' },
+  urgentBanner: { backgroundColor: '#DC2626' },
+  bannerTitle: { color: '#FFFFFF', fontWeight: '800', fontSize: 14 },
+  bannerBody: { color: '#E2E8F0', fontSize: 12, marginTop: 2 },
 });

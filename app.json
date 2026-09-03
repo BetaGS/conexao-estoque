@@ -6,6 +6,7 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
+        "NSCameraUsageDescription": "O Conexão Estoque precisa de acesso à câmera para tirar fotos dos produtos diretamente pelo app.",
         "NSPhotoLibraryUsageDescription": "O Conexão Estoque precisa de acesso à galeria para que você vincule fotos dos produtos a cada variação de cor."
       }
     },
@@ -14,11 +15,30 @@
         "backgroundColor": "#FFFFFF"
       },
       "permissions": [
+        "CAMERA",
         "READ_EXTERNAL_STORAGE",
-        "READ_MEDIA_IMAGES"
+        "READ_MEDIA_IMAGES",
+        "POST_NOTIFICATIONS",
+        "VIBRATE",
+        "RECEIVE_BOOT_COMPLETED"
       ],
       "package": "com.betags2.conexaoestoque"
     },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "O Conexão Estoque precisa acessar suas fotos para cadastrar produtos.",
+          "cameraPermission": "O Conexão Estoque precisa acessar sua câmera para fotografar novos produtos."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#2563EB"
+        }
+      ]
+    ],
     "extra": {
       "eas": {
         "projectId": "b7362873-7080-4ee6-8d05-c6f301b57a5a"
