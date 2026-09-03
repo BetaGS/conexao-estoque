@@ -1,247 +1,279 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Image, Alert } from 'react-native';
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+  Image,
+  Alert,
+  ActivityIndicator,
+} from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useStore } from '../../contexts/StoreContext';
 import { useTheme } from '../../contexts/ThemeContext';
 
-export default function CreateProductScreen({ route, navigation }) {
-  const productToEdit = route.params?.productToEdit;
-  const isEditing = !!productToEdit;
-
-  const { store, addProduct, updateProduct, deleteProduct } = useStore();
+export default function CreateProductScreen({ navigation }) {
+  const { addProduct, store } = useStore();
   const { colors } = useTheme();
 
-  const [productTitle, setProductTitle] = useState(productToEdit ? productToEdit.title : '');
-  const [selectedSizes, setSelectedSizes] = useState(productToEdit ? productToEdit.sizes : []);
-  const [variants, setVariants] = useState(productToEdit ? productToEdit.variants : []);
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [selectedSizes, setSelectedSizes] = useState([]);
+  const [colorsList, setColorsList] = useState('');
+  const [imageUri, setImageUri] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-  const [currentColorName, setCurrentColorName] = useState('');
-  const [currentImageUri, setCurrentImageUri] = useState(null);
+  // Lista de tamanhos configurados na loja ou padrão
+  const availableSizes = store?.allowedSizes?.length
+    ? store.allowedSizes
+    : ['PP', 'P', 'M', 'G', 'GG', '38', '39', '40', '41', '42'];
 
-  const availableSizes = store?.allowedSizes || [];
-
+  // Alterna a seleção de tamanhos
   const toggleSize = (size) => {
-    setSelectedSizes((prev) =>
-      prev.includes(size) ? prev.filter((s) => s !== size) : [...prev, size]
-    );
-  };
-
-  const pickImageForColor = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permissão necessária', 'Autorize o acesso à galeria para anexar foto a esta cor.');
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-
-    if (!result.canceled && result.assets && result.assets[0]) {
-      setCurrentImageUri(result.assets[0].uri);
-    }
-  };
-
-  // Adiciona a cor (foto é opcional)
-  const handleAddColorVariant = () => {
-    if (!currentColorName.trim()) {
-      Alert.alert('Atenção', 'Informe o nome da cor.');
-      return;
-    }
-
-    const newVariant = {
-      id: String(Date.now()),
-      colorName: currentColorName.trim(),
-      imageUri: currentImageUri || null, // Opcional
-    };
-
-    setVariants((prev) => [...prev, newVariant]);
-    setCurrentColorName('');
-    setCurrentImageUri(null);
-  };
-
-  const handleRemoveVariant = (variantId) => {
-    setVariants((prev) => prev.filter((v) => v.id !== variantId));
-  };
-
-  const handleSaveProduct = () => {
-    if (!productTitle.trim() || selectedSizes.length === 0 || variants.length === 0) {
-      Alert.alert(
-        'Campos incompletos',
-        'Informe o título, selecione ao menos 1 tamanho e cadastre ao menos 1 cor (com ou sem foto).'
-      );
-      return;
-    }
-
-    const payload = {
-      title: productTitle.trim(),
-      sizes: selectedSizes,
-      variants,
-    };
-
-    if (isEditing) {
-      updateProduct(productToEdit.id, payload);
-      Alert.alert('Atualizado', 'Card atualizado com sucesso!');
+    if (selectedSizes.includes(size)) {
+      setSelectedSizes(selectedSizes.filter((s) => s !== size));
     } else {
-      addProduct(payload);
-      Alert.alert('Cadastrado', 'Novo card publicado!');
+      setSelectedSizes([...selectedSizes, size]);
     }
-
-    navigation.goBack();
   };
 
-  const handleDelete = () => {
-    Alert.alert('Excluir Card', 'Deseja remover este card do catálogo?', [
+  // 1. Tirar foto com a Câmera
+  const handleTakePhoto = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permissão Negada', 'Precisamos de acesso à sua câmera para tirar fotos.');
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 4],
+        quality: 0.7,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setImageUri(result.assets[0].uri);
+      }
+    } catch (err) {
+      Alert.alert('Erro', 'Não foi possível abrir a câmera.');
+    }
+  };
+
+  // 2. Escolher foto da Galeria
+  const handlePickGallery = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permissão Negada', 'Precisamos de acesso à sua galeria para selecionar imagens.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 4],
+        quality: 0.7,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setImageUri(result.assets[0].uri);
+      }
+    } catch (err) {
+      Alert.alert('Erro', 'Não foi possível abrir a galeria.');
+    }
+  };
+
+  // Menu de opções para a imagem
+  const handleSelectImageOptions = () => {
+    Alert.alert('Foto do Produto', 'Como você deseja adicionar a imagem?', [
+      { text: '📷 Tirar Foto Agora', onPress: handleTakePhoto },
+      { text: '🖼️ Escolher da Galeria', onPress: handlePickGallery },
       { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Excluir',
-        style: 'destructive',
-        onPress: () => {
-          deleteProduct(productToEdit.id);
-          navigation.goBack();
-        },
-      },
     ]);
+  };
+
+  // Salvar produto
+  const handleSave = async () => {
+    if (!title.trim()) {
+      Alert.alert('Campo Obrigatório', 'Por favor, digite o título do produto.');
+      return;
+    }
+
+    if (selectedSizes.length === 0) {
+      Alert.alert('Campo Obrigatório', 'Selecione ao menos um tamanho disponível.');
+      return;
+    }
+
+    const formattedColors = colorsList
+      .split(',')
+      .map((c) => c.trim())
+      .filter(Boolean);
+
+    setLoading(true);
+    const result = await addProduct({
+      title: title.trim(),
+      description: description.trim(),
+      sizes: selectedSizes,
+      colors: formattedColors.length > 0 ? formattedColors : ['Única'],
+      image: imageUri,
+    });
+    setLoading(false);
+
+    if (result.success) {
+      Alert.alert('Sucesso', 'Card de produto criado com sucesso!');
+      navigation.goBack();
+    } else {
+      Alert.alert('Erro ao Salvar', result.error || 'Não foi possível cadastrar o produto.');
+    }
   };
 
   return (
     <ScrollView contentContainerStyle={[styles.container, { backgroundColor: colors.background }]}>
-      <Text style={[styles.screenTitle, { color: colors.text }]}>
-        {isEditing ? 'Editar Card de Produto' : 'Criar Card de Produto'}
-      </Text>
-
-      <Text style={[styles.label, { color: colors.subText }]}>Título do Produto *</Text>
-      <TextInput
-        style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
-        placeholder="Ex: Calça Cargo Sarja"
-        placeholderTextColor={colors.subText}
-        value={productTitle}
-        onChangeText={setProductTitle}
-      />
-
-      {/* Seleção da Grade da Loja */}
-      <Text style={[styles.label, { color: colors.subText }]}>Tamanhos Disponíveis para este Produto *</Text>
-      <View style={styles.chipsWrap}>
-        {availableSizes.map((size) => {
-          const isSelected = selectedSizes.includes(size);
-          return (
-            <TouchableOpacity
-              key={size}
-              style={[
-                styles.sizeChip,
-                { backgroundColor: colors.card, borderColor: colors.border },
-                isSelected && { backgroundColor: colors.primary, borderColor: colors.primary }
-              ]}
-              onPress={() => toggleSize(size)}
-            >
-              <Text style={[styles.sizeChipText, { color: colors.text }, isSelected && { color: colors.primaryText, fontWeight: '700' }]}>
-                {size}
+      {/* Seção da Imagem */}
+      <View style={styles.imageSection}>
+        <TouchableOpacity
+          style={[styles.imagePickerBox, { backgroundColor: colors.card, borderColor: colors.border }]}
+          onPress={handleSelectImageOptions}
+        >
+          {imageUri ? (
+            <Image source={{ uri: imageUri }} style={styles.previewImage} />
+          ) : (
+            <View style={styles.placeholderBox}>
+              <Text style={styles.cameraIcon}>📸</Text>
+              <Text style={[styles.placeholderText, { color: colors.primary }]}>
+                Tirar Foto ou Escolher da Galeria
               </Text>
-            </TouchableOpacity>
-          );
-        })}
+            </View>
+          )}
+        </TouchableOpacity>
+
+        {imageUri && (
+          <TouchableOpacity style={styles.changePhotoBtn} onPress={handleSelectImageOptions}>
+            <Text style={[styles.changePhotoText, { color: colors.primary }]}>Trocar Foto</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
-      {/* Cadastro de Cor e Foto (Foto Opcional) */}
-      <View style={[styles.variantBuilderBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <Text style={[styles.subTitle, { color: colors.text }]}>Cores do Card</Text>
-        <Text style={[styles.helperText, { color: colors.subText }]}>
-          Defina o nome da cor. A foto é opcional.
-        </Text>
-
+      {/* Formulário */}
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <Text style={[styles.label, { color: colors.subText }]}>NOME DO PRODUTO / REFERÊNCIA *</Text>
         <TextInput
           style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
-          placeholder="Nome da cor (Ex: Azul Marinho)"
+          placeholder="Ex: Camiseta Básica Slim"
           placeholderTextColor={colors.subText}
-          value={currentColorName}
-          onChangeText={setCurrentColorName}
+          value={title}
+          onChangeText={setTitle}
         />
 
-        <View style={styles.imagePickerRow}>
-          <TouchableOpacity
-            style={[styles.uploadButton, { backgroundColor: colors.chip, borderColor: colors.border }]}
-            onPress={pickImageForColor}
-          >
-            <Text style={[styles.uploadButtonText, { color: colors.text }]}>
-              {currentImageUri ? '📷 Trocar Imagem' : '📷 Foto (Opcional)'}
-            </Text>
-          </TouchableOpacity>
-          {currentImageUri && (
-            <Image source={{ uri: currentImageUri }} style={styles.previewThumbnail} />
-          )}
+        <Text style={[styles.label, { color: colors.subText, marginTop: 14 }]}>DESCRIÇÃO / DETALHES</Text>
+        <TextInput
+          style={[
+            styles.input,
+            styles.textArea,
+            { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text },
+          ]}
+          placeholder="Ex: 100% Algodão, corte regular..."
+          placeholderTextColor={colors.subText}
+          value={description}
+          onChangeText={setDescription}
+          multiline
+          numberOfLines={3}
+        />
+
+        <Text style={[styles.label, { color: colors.subText, marginTop: 14 }]}>
+          CORES DISPONÍVEIS (SEPARE POR VÍRGULA)
+        </Text>
+        <TextInput
+          style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
+          placeholder="Ex: Preto, Branco, Azul Marinho"
+          placeholderTextColor={colors.subText}
+          value={colorsList}
+          onChangeText={setColorsList}
+        />
+
+        {/* Seleção de Tamanhos */}
+        <Text style={[styles.label, { color: colors.subText, marginTop: 14 }]}>TAMANHOS DISPONÍVEIS *</Text>
+        <View style={styles.sizesContainer}>
+          {availableSizes.map((size) => {
+            const isSelected = selectedSizes.includes(size);
+            return (
+              <TouchableOpacity
+                key={size}
+                style={[
+                  styles.sizeChip,
+                  isSelected
+                    ? { backgroundColor: colors.primary, borderColor: colors.primary }
+                    : { backgroundColor: colors.inputBg, borderColor: colors.border },
+                ]}
+                onPress={() => toggleSize(size)}
+              >
+                <Text
+                  style={[
+                    styles.sizeChipText,
+                    { color: isSelected ? colors.primaryText : colors.text },
+                  ]}
+                >
+                  {size}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
-        <TouchableOpacity style={[styles.addColorButton, { backgroundColor: colors.primary }]} onPress={handleAddColorVariant}>
-          <Text style={[styles.addColorButtonText, { color: colors.primaryText }]}>+ Incluir esta Cor</Text>
+        {/* Botão Salvar */}
+        <TouchableOpacity
+          style={[styles.saveBtn, { backgroundColor: colors.primary, opacity: loading ? 0.7 : 1 }]}
+          onPress={handleSave}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color={colors.primaryText} size="small" />
+          ) : (
+            <Text style={[styles.saveBtnText, { color: colors.primaryText }]}>Criar Card de Produto</Text>
+          )}
         </TouchableOpacity>
       </View>
-
-      {/* Cores vinculadas */}
-      {variants.length > 0 && (
-        <View style={[styles.addedVariantsList, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.label, { color: colors.subText }]}>Cores Vinculadas ({variants.length})</Text>
-          {variants.map((item) => (
-            <View key={item.id} style={[styles.variantItem, { borderBottomColor: colors.border }]}>
-              {item.imageUri ? (
-                <Image source={{ uri: item.imageUri }} style={styles.variantThumb} />
-              ) : (
-                <View style={[styles.variantThumb, styles.noThumb, { backgroundColor: colors.chip }]}>
-                  <Text style={{ fontSize: 16 }}>🎨</Text>
-                </View>
-              )}
-              <Text style={[styles.variantName, { color: colors.text }]}>
-                {item.colorName} {item.imageUri ? '' : '(Sem foto)'}
-              </Text>
-              <TouchableOpacity onPress={() => handleRemoveVariant(item.id)}>
-                <Text style={{ color: colors.danger, fontWeight: '700' }}>Remover</Text>
-              </TouchableOpacity>
-            </View>
-          ))}
-        </View>
-      )}
-
-      <TouchableOpacity style={[styles.saveProductButton, { backgroundColor: colors.primary }]} onPress={handleSaveProduct}>
-        <Text style={[styles.saveProductButtonText, { color: colors.primaryText }]}>
-          {isEditing ? 'Salvar Alterações' : 'Publicar Card'}
-        </Text>
-      </TouchableOpacity>
-
-      {isEditing && (
-        <TouchableOpacity style={[styles.deleteButton, { backgroundColor: colors.dangerSurface }]} onPress={handleDelete}>
-          <Text style={[styles.deleteButtonText, { color: colors.danger }]}>Excluir Card</Text>
-        </TouchableOpacity>
-      )}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 20 },
-  screenTitle: { fontSize: 22, fontWeight: '800', marginBottom: 16 },
-  label: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', marginBottom: 6, marginTop: 8 },
-  subTitle: { fontSize: 15, fontWeight: '700', marginBottom: 2 },
-  helperText: { fontSize: 12, marginBottom: 12 },
-  input: { borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 12, fontSize: 14 },
-  chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
-  sizeChip: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1 },
-  sizeChipText: { fontSize: 13, fontWeight: '500' },
-  variantBuilderBox: { padding: 16, borderRadius: 16, borderWidth: 1, marginTop: 8 },
-  imagePickerRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
-  uploadButton: { flex: 1, borderWidth: 1, borderStyle: 'dashed', padding: 12, borderRadius: 10, alignItems: 'center' },
-  uploadButtonText: { fontSize: 13, fontWeight: '600' },
-  previewThumbnail: { width: 44, height: 44, borderRadius: 8 },
-  addColorButton: { padding: 11, borderRadius: 10, alignItems: 'center' },
-  addColorButtonText: { fontWeight: '700', fontSize: 13 },
-  addedVariantsList: { marginTop: 16, padding: 14, borderRadius: 14, borderWidth: 1 },
-  variantItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1 },
-  variantThumb: { width: 38, height: 38, borderRadius: 8 },
-  noThumb: { justifyContent: 'center', alignItems: 'center' },
-  variantName: { flex: 1, fontSize: 14, fontWeight: '600', marginLeft: 10 },
-  saveProductButton: { padding: 16, borderRadius: 14, alignItems: 'center', marginTop: 24 },
-  saveProductButtonText: { fontWeight: '700', fontSize: 16 },
-  deleteButton: { padding: 14, borderRadius: 14, alignItems: 'center', marginTop: 12, marginBottom: 30 },
-  deleteButtonText: { fontWeight: '700', fontSize: 15 },
+  container: { flexGrow: 1, padding: 20 },
+  imageSection: { alignItems: 'center', marginBottom: 20 },
+  imagePickerBox: {
+    width: '100%',
+    height: 220,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  placeholderBox: { alignItems: 'center', padding: 20 },
+  cameraIcon: { fontSize: 40, marginBottom: 8 },
+  placeholderText: { fontSize: 14, fontWeight: '700', textAlign: 'center' },
+  previewImage: { width: '100%', height: '100%', resizeMode: 'cover' },
+  changePhotoBtn: { marginTop: 10, paddingVertical: 4 },
+  changePhotoText: { fontWeight: '700', fontSize: 13, textDecorationLine: 'underline' },
+  card: { padding: 18, borderRadius: 20, borderWidth: 1, elevation: 2 },
+  label: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5, marginBottom: 8 },
+  input: { borderWidth: 1, borderRadius: 12, padding: 12, fontSize: 15 },
+  textArea: { height: 75, textAlignVertical: 'top' },
+  sizesContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
+  sizeChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    minWidth: 44,
+    alignItems: 'center',
+  },
+  sizeChipText: { fontWeight: '700', fontSize: 13 },
+  saveBtn: { paddingVertical: 15, borderRadius: 14, alignItems: 'center' },
+  saveBtnText: { fontWeight: '700', fontSize: 15 },
 });
